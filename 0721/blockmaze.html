@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>倉庫からの脱出</title>
+<script>
+let canvas, context;
+const image = new Image();
+image.src = "player.png";
+let x, y, vx, vy;
+let dir = 0;
+let status = "stop";
+const playMap = new Array();
+let mapWidth, mapHeight;
+let stage, gameStatus = "ready";
+
+// マップデータ
+const map = [
+    ["###########", "        ###### ", "  #########       "],
+    ["###########", "  #####G#######", "######## ### ##   "],
+    ["##S#    ###", " ######G   # ##", "##     # #S## ##  "],
+    ["## # ##  ##", "##S# #### ## ##", "##### # # #### ## "],
+    ["###  # # ##", "#####     # ###", " ## # ##### #   ##"],
+    ["## ####G###", "## # ## ##  ###", " ##  #    # ## #GG"],
+    ["#######G###", "## ####  ### ##", " ## # ####  ## # #"],
+    [""           , " #######     ##", "  ### ## ## ## ###"],
+    [""           , "  ##   ########", "   ## #     ####  "],
+    [""           , "        ###### ", "    ###########   "],
+    [""           , ""               , "     #######      "]];
+
+const init = () => {
+    // キャンバスの取得
+    canvas = document.getElementById("map");
+    context = canvas.getContext("2d");
+    // キーイベントの登録
+    document.addEventListener("keydown", move);
+    document.addEventListener("keyup", stop);
+    // ゲーム開始
+    initStage();
+}
+
+const initStage = () => {
+    // はじめから
+    stage = 0;
+    setStage();
+}
+
+const setStage = () => {
+    // マップを作成
+    [mapWidth, mapHeight] = [0, 0];
+    for (let i = 0; i < map.length; i++) {
+        playMap[i] = [];
+        for (let j = 0; j < map[i][stage].length; j++) {
+            const mark = map[i][stage].substr(j, 1);
+            if (mark == "#") {
+                // ブロック
+                playMap[i][j] = 0;
+            } else if (mark == "G") {
+                // ゴール
+                playMap[i][j] = 1;
+            } else {
+                // 通路
+                playMap[i][j] = 2;
+                // スタート位置
+                if (mark == "S") [x, y, vx, vy, dir] = [j, i, 0, 0, 0];
+            }
+        }
+        if (mapWidth < playMap[i].length) mapWidth = playMap[i].length;
+        if (map[i][stage].length > 0) mapHeight++;
+    }
+    // ゲーム開始
+    document.getElementById("reset").disabled = false;
+    document.getElementById("next").disabled = true;
+    [gameStatus, status] = ["start", "stop"];
+    update();
+}
+
+const update = () => {
+    // プレイヤーの移動
+    let isGoal = false;
+    let mapType = playMap[y + vy][x + vx];
+    if (mapType > 0) {
+        // 移動先がゴール or 通路
+        x += vx;
+        y += vy;
+        if (mapType == 1) isGoal = true;
+    } else if (playMap[y + vy + vy][x + vx + vx] == 2) {
+        // 移動先がブロック、その先が通路
+        playMap[y + vy][x + vx] = 2;
+        playMap[y + vy + vy][x + vx + vx] = 0;
+        x += vx;
+        y += vy;
+    }
+    // マップの描画
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < playMap.length; i++) {
+        for (let j = 0; j < playMap[i].length; j++) {
+            if (playMap[i][j] == 0) {
+                // ブロック
+                drawBlock(j, i, "peru");
+            } else if (playMap[i][j] == 1) {
+                // ゴール
+                drawBlock(j, i, "aquamarine");
+            }
+        }
+    }
+    // プレイヤーの描画
+    context.drawImage(image, dir*32, 0, 32, 32, x*32, y*32, 32, 32);
+    // ゴールイン
+    if (isGoal) {
+        gameStatus = "ready";
+        stage++;
+        document.getElementById("reset").disabled = true;
+        if (stage == map[0].length) {
+            // ゲームクリア
+            drawText("CLEAR!", mapWidth/2, mapHeight/2);
+        } else {
+            // 次のステージへ
+            drawText("GOAL!", mapWidth/2, mapHeight/2);
+            document.getElementById("next").disabled = false;
+        }
+    }
+}
+
+const drawBlock = (x, y, color) => {
+    // ブロックの描画
+    context.fillStyle = color;
+    context.fillRect(x*32, y*32, 32, 32);
+    context.lineWidth = 1;
+    context.strokeStyle = "black";
+    context.strokeRect(x*32, y*32, 32, 32);
+}
+
+const drawText = (text, x, y) => {
+    // テキストの描画
+    context.font = "bold 100px sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillStyle = "yellow";
+    context.fillText(text, x*32, y*32);
+    context.lineWidth = 3;
+    context.strokeStyle = "blue";
+    context.strokeText(text, x*32, y*32);
+}
+
+const move = event => {
+    // キーを押したとき
+    if ((gameStatus == "start") && (status == "stop")) {
+        if (event.key == "ArrowUp") [vx, vy, dir, status] = [0, -1, 1, "walk"];
+        if (event.key == "ArrowDown") [vx, vy, dir, status] = [0, 1, 0, "walk"];
+        if (event.key == "ArrowLeft") [vx, vy, dir, status] = [-1, 0, 2, "walk"];
+        if (event.key == "ArrowRight") [vx, vy, dir, status] = [1, 0, 3, "walk"];
+        update();
+    }
+}
+
+const stop = event => {
+    // キーを放したとき
+    if ((gameStatus == "start") &&
+        ((event.key == "ArrowUp") || (event.key == "ArrowDown") ||
+        (event.key == "ArrowLeft") || (event.key == "ArrowRight"))) {
+        status = "stop";
+    }
+}
+</script>
+</head>
+<body onload="init()">
+<p>倉庫からの脱出</p>
+<input type="button" id="restart" value="はじめから" onclick="initStage()">
+<input type="button" id="reset" value="やり直し" onclick="setStage()">
+<input type="button" id="next" value="次のステージへ" onclick="setStage()">
+<hr>
+<canvas id="map" width="576" height="352"></canvas>
+</body>
+</html>
